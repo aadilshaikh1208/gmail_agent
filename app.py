@@ -8,6 +8,8 @@ from langchain_google_community.gmail.utils import (
 )
 from langchain_google_community import GmailToolkit
 from langchain.chat_models import init_chat_model
+from langgraph.checkpoint.memory import MemorySaver
+import uuid
 
 load_dotenv()
 
@@ -240,7 +242,7 @@ input[type="text"]::placeholder, textarea::placeholder {
 /* Modern Output Section Design */
 .output-section {
   background: linear-gradient(145deg, rgba(0,0,0,0.5), rgba(0,0,0,0.3));
-  padding: 24px;
+  padding: 21px;
   border-radius: 16px;
   border: 1px solid rgba(255,255,255,0.08);
   margin-bottom: 1.2rem;
@@ -472,6 +474,16 @@ toolkit = GmailToolkit(api_resource=api_resource)
 tools = toolkit.get_tools()
 
 llm = init_chat_model("google_genai:gemini-2.0-flash")
+
+
+# --- Memory Setup ---
+if "checkpointer" not in st.session_state:
+    st.session_state.checkpointer = MemorySaver()
+
+if "thread_id" not in st.session_state:
+    st.session_state.thread_id = f"gmail_agent_session_{uuid.uuid4()}"
+
+
 instructions = """You are an intelligent Gmail Assistant and personal email manager with the highest standards of accuracy and reliability.
 
 ## 🎯 CORE MISSION
@@ -533,7 +545,14 @@ Your primary responsibility is to help users manage their Gmail efficiently whil
 
 """
 
-agent_executor = create_react_agent(llm, tools, prompt=instructions)
+
+if "agent_executor" not in st.session_state:
+    st.session_state.agent_executor = create_react_agent(
+        llm,
+        tools,
+        prompt=instructions,
+        checkpointer=st.session_state.checkpointer
+    )
 
 # --- Main layout ---
 col1, col2 = st.columns([1, 2])
@@ -592,8 +611,6 @@ with col2:
 
 # --- Run agent and stream responses ---
 if run_button:
-    base_prompt = hub.pull("langchain-ai/openai-functions-template")
-    prompt = base_prompt.partial(instructions=instruction_text)
 
     # Initialize output containers
     tools_text = ""
@@ -610,8 +627,9 @@ if run_button:
     )
 
     # Stream events
-    events = agent_executor.stream(
+    events = st.session_state.agent_executor.stream(
         {"messages": [("user", example_query)]},
+        config={"configurable": {"thread_id": st.session_state.thread_id}},
         stream_mode="values",
     )
 
