@@ -11,6 +11,7 @@ This app lets you **interact with your Gmail inbox**, compose and send emails, a
 - 📬 Fetch, read, and manage your Gmail inbox  
 - 📝 Draft and send emails with natural language commands  
 - 🖥️ **Streamlit modern UI** with responsive design, animations, and interactive output sections  
+- 🧠 **Persistent conversation memory** using LangGraph MemorySaver — remembers past queries in the same session
 - 📡 Real-time streaming of agent responses, tool calls, and event logs  
 - 🎨 Custom CSS with **dashboard-like design** for professional feel  
 
