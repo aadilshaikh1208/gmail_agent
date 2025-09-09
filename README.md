@@ -22,7 +22,7 @@ This app lets you **interact with your Gmail inbox**, compose and send emails, a
 ### 1. Clone the repository
 ```bash
 git clone https://github.com/aadilshaikh1208/gmail_agent.git
-cd email-agent
+cd gmail-agent
 ```
 
 ### 2. Create and activate a virtual environment
@@ -97,17 +97,15 @@ Type natural language queries like:
 - `"Show me my last 5 emails"`
 - `"Find emails from john@example.com"`
 - `"Search emails with subject 'Invoice'"`
-- `"Show unread messages"`
 
 ### 📝 **Composing Emails**
 - `"Draft an email to sarah@company.com about tomorrow's meeting"`
 - `"Send a thank you email to the team"`
-- `"Compose a follow-up email for the client"`
 
-### 🔍 **Email Management**
-- `"Mark all emails from newsletter@company.com as read"`
-- `"Find emails received last week"`
-- `"Show emails with attachments"`
+
+### 🧠 Memory-Persistent Conversations
+- `"Show me my last 5 emails"`
+- `"Reply to the second one with: Thanks, I’ll get back to you soon."`
 
 ### 📊 **Interactive Output Sections**
 Watch real-time responses in three sections:
