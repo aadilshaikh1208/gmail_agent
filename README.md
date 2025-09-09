@@ -21,7 +21,7 @@ This app lets you **interact with your Gmail inbox**, compose and send emails, a
 
 ### 1. Clone the repository
 ```bash
-git clone git@git.talkwisely.io:aadil_shaikh1208/email_agent.git
+git clone https://github.com/aadilshaikh1208/gmail_agent.git
 cd email-agent
 ```
 
