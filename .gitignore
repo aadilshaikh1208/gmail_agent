@@ -1,0 +1,8 @@
+# Python virtual environment folders
+env/
+.vscode/
+
+# Sensitive files
+.env
+token.json
+credentials.json
