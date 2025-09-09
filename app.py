@@ -1,18 +1,21 @@
+import uuid
+import html
 import streamlit as st
 from dotenv import load_dotenv
 from langchain import hub
-from langgraph.prebuilt import create_react_agent
+from langchain.chat_models import init_chat_model
+from langchain_google_community import GmailToolkit
 from langchain_google_community.gmail.utils import (
     build_resource_service,
     get_gmail_credentials,
 )
-from langchain_google_community import GmailToolkit
-from langchain.chat_models import init_chat_model
+from langgraph.prebuilt import create_react_agent
 from langgraph.checkpoint.memory import MemorySaver
-import uuid
 
+# =========================================================
+# ✅ Environment & Config
+# =========================================================
 load_dotenv()
-
 st.set_page_config(page_title="Gmail Agent", layout="wide")
 
 # --- Enhanced Custom CSS for modern styling (fixed version) ---
@@ -446,7 +449,9 @@ input[type="text"]::placeholder, textarea::placeholder {
 
 st.markdown(CUSTOM_CSS, unsafe_allow_html=True)
 
-# --- Modern Compact Header ---
+# =========================================================
+# 🏷️ Header Section
+# =========================================================
 st.markdown("""
 <div class="main-header">
     <div class="header-left">
@@ -462,26 +467,62 @@ st.markdown("""
 </div>
 """, unsafe_allow_html=True)
 
-# --- Initialize Gmail agent automatically ---
-scopes = ["https://mail.google.com/"]
-credentials = get_gmail_credentials(
-    token_file="token.json",
-    scopes=scopes,
-    client_secrets_file="credentials.json",
-)
-api_resource = build_resource_service(credentials=credentials)
-toolkit = GmailToolkit(api_resource=api_resource)
-tools = toolkit.get_tools()
-
-llm = init_chat_model("google_genai:gemini-2.0-flash")
+# =========================================================
+# 📧 Gmail API Setup
+# =========================================================
 
 
-# --- Memory Setup ---
-if "checkpointer" not in st.session_state:
-    st.session_state.checkpointer = MemorySaver()
+@st.cache_resource
+def init_gmail_tools_cached():
+    return init_gmail_tools()
 
-if "thread_id" not in st.session_state:
-    st.session_state.thread_id = f"gmail_agent_session_{uuid.uuid4()}"
+
+@st.cache_resource
+def init_agent_cached(_tools):
+    llm = init_chat_model("google_genai:gemini-2.0-flash")
+    return create_react_agent(
+        llm,
+        _tools,
+        prompt=instructions,
+        checkpointer=st.session_state.checkpointer,
+    )
+
+
+
+def init_gmail_tools():
+    """Initialize Gmail API service and return toolkit tools."""
+    scopes = ["https://mail.google.com/"]
+    credentials = get_gmail_credentials(
+        token_file="token.json",
+        scopes=scopes,
+        client_secrets_file="credentials.json",
+    )
+    api_resource = build_resource_service(credentials=credentials)
+    return GmailToolkit(api_resource=api_resource).get_tools()
+
+
+# =========================================================
+# 🧠 Memory & Agent Setup
+# =========================================================
+def init_agent():
+    """Create or retrieve the Gmail agent with memory persistence."""
+    if "checkpointer" not in st.session_state:
+        st.session_state.checkpointer = MemorySaver()
+
+    if "thread_id" not in st.session_state:
+        st.session_state.thread_id = f"gmail_agent_session_{uuid.uuid4()}"
+
+    if "agent_executor" not in st.session_state:
+        tools = init_gmail_tools_cached()
+        st.session_state.agent_executor = init_agent_cached(tools)
+
+      
+    return st.session_state.agent_executor
+
+
+# =========================================================
+# 📋 Agent Instructions
+# =========================================================
 
 
 instructions = """You are an intelligent Gmail Assistant and personal email manager with the highest standards of accuracy and reliability.
@@ -544,17 +585,9 @@ Your primary responsibility is to help users manage their Gmail efficiently whil
 - **EFFICIENT** task completion with minimal back-and-forth
 
 """
-
-
-if "agent_executor" not in st.session_state:
-    st.session_state.agent_executor = create_react_agent(
-        llm,
-        tools,
-        prompt=instructions,
-        checkpointer=st.session_state.checkpointer
-    )
-
-# --- Main layout ---
+# =========================================================
+# 🖼️ UI Layout
+# =========================================================
 col1, col2 = st.columns([1, 2])
 
 with col1:
@@ -562,22 +595,34 @@ with col1:
                 unsafe_allow_html=True)
     st.markdown("<div class='status-indicator'>🟢 Agent Ready</div>",
                 unsafe_allow_html=True)
-    st.subheader("✉️ Compose / Ask")
 
+    st.subheader("✉️ Compose / Ask")
     instruction_text = st.text_area(
         "System Instructions (optional)",
         value=instructions,
         height=120,
-        help="Customize the agent's behavior and instructions"
+        help="Customize the agent's behavior and instructions",
     )
+
+    if "example_query" not in st.session_state:
+        st.session_state.example_query = ""
+
+    # Store latest query safely
+    if "last_query" not in st.session_state:
+        st.session_state.last_query = ""
+
+    def handle_send():
+        st.session_state.last_query = st.session_state.example_query.strip()
+        st.session_state.example_query = ""  # clear field
 
     example_query = st.text_area(
         "Type your query here",
+        key='example_query',
         height=160,
-        placeholder="e.g., 'Show me my latest 5 emails' or 'Draft an email to john@example.com about the meeting'"
+        placeholder="e.g., 'Show me my latest 5 emails' or 'Draft an email to john@example.com about the meeting'",
     )
 
-    run_button = st.button("🚀 Send Query")
+    run_button = st.button("🚀 Send Query", on_click=handle_send)
     st.markdown("</div>", unsafe_allow_html=True)
 
 with col2:
@@ -585,96 +630,95 @@ with col2:
 
     # Agent Response Section
     st.markdown("""
-    <div class="output-section">
-        <h4>🤖 Agent Response</h4>
+    <div class="output-section"><h4>🤖 Agent Response</h4>
     """, unsafe_allow_html=True)
     agent_output_box = st.empty()
     agent_output_box.markdown(
-        "<div class='output-box'>Ready to process your query...</div>",
-        unsafe_allow_html=True,
-    )
+        "<div class='output-box'>Ready to process your query...</div>", unsafe_allow_html=True)
     st.markdown("</div>", unsafe_allow_html=True)
 
     # Tool Calls Section
     st.markdown("""
-    <div class="output-section">
-        <h4>🛠️ Tool Calls & Messages</h4>
+    <div class="output-section"><h4>🛠️ Tool Calls & Messages</h4>
     """, unsafe_allow_html=True)
     tools_output_box = st.empty()
     tools_output_box.markdown(
-        "<div class='output-box'>Tool interactions will appear here...</div>",
-        unsafe_allow_html=True,
-    )
+        "<div class='output-box'>Tool interactions will appear here...</div>", unsafe_allow_html=True)
     st.markdown("</div>", unsafe_allow_html=True)
 
     st.markdown("</div>", unsafe_allow_html=True)
 
-# --- Run agent and stream responses ---
+# =========================================================
+# 🚀 Query Execution
+# =========================================================
 if run_button:
+    try:
+        query = st.session_state.last_query
 
-    # Initialize output containers
-    tools_text = ""
-    final_response = ""
+        if not query:
+            st.warning("⚠️ Please enter a query before sending.")
 
-    # Update initial states
-    agent_output_box.markdown(
-        "<div class='output-box processing'>🔄 Processing your request...</div>",
-        unsafe_allow_html=True
-    )
-    tools_output_box.markdown(
-        "<div class='output-box processing'>🔄 Waiting for tool calls...</div>",
-        unsafe_allow_html=True
-    )
+        else:
+            agent_executor = init_agent()
 
-    # Stream events
-    events = st.session_state.agent_executor.stream(
-        {"messages": [("user", example_query)]},
-        config={"configurable": {"thread_id": st.session_state.thread_id}},
-        stream_mode="values",
-    )
+            # Initialize output containers
+            tools_text, final_response = "", ""
 
-    for event in events:
-        # Extract messages
-        messages = event.get("messages", [])
-        if messages:
-            last_message = messages[-1]
-            message_content = getattr(
-                last_message, "content", str(last_message))
-            message_type = getattr(
-                last_message, "__class__", type(last_message)).__name__
+            agent_output_box.markdown(
+                "<div class='output-box processing'>🔄 Processing your request...</div>",
+                unsafe_allow_html=True,
+            )
+            tools_output_box.markdown(
+                "<div class='output-box processing'>🔄 Waiting for tool calls...</div>",
+                unsafe_allow_html=True,
+            )
 
-            import html
-            # Categorize messages
-            if "Tool" in message_type:
-                safe_content = html.escape(str(message_content))
-                tools_text += f"🔧 [{message_type}]\n{safe_content}\n\n"
-                tools_output_box.markdown(
-                    f"<div class='output-box'>{tools_text}</div>",
-                    unsafe_allow_html=True
-                )
+            # Stream events
+            events = agent_executor.stream(
+                {"messages": [("user", query)]},
+                config={"configurable": {
+                    "thread_id": st.session_state.thread_id}},
+                stream_mode="values",
+            )
+            for event in events:
+                messages = event.get("messages", [])
+                if not messages:
+                    continue
 
-            # When rendering AI responses
-            elif "AI" in message_type:
-                safe_content = html.escape(str(message_content))
-                final_response = safe_content
+                last_message = messages[-1]
+                message_content = getattr(
+                    last_message, "content", str(last_message))
+                message_type = getattr(
+                    last_message, "__class__", type(last_message)).__name__
+
+                if "Tool" in message_type:
+                    safe_content = html.escape(str(message_content))
+                    tools_text += f"🔧 [{message_type}]\n{safe_content}\n\n"
+                    tools_output_box.markdown(
+                        f"<div class='output-box'>{tools_text}</div>", unsafe_allow_html=True)
+
+                elif "AI" in message_type:
+                    safe_content = html.escape(str(message_content))
+                    final_response = safe_content
+                    agent_output_box.markdown(
+                        f"<div class='output-box'>{final_response}</div>", unsafe_allow_html=True)
+
+            # Ensure final response is displayed
+            if not final_response:
                 agent_output_box.markdown(
-                    f"<div class='output-box'>{final_response}</div>",
-                    unsafe_allow_html=True
+                    "<div class='output-box'>✅ Task completed. Check tool calls for details.</div>",
+                    unsafe_allow_html=True,
                 )
 
-    # Ensure final response is displayed
-    if final_response:
+    except Exception as e:
         agent_output_box.markdown(
-            f"<div class='output-box'>{final_response}</div>",
-            unsafe_allow_html=True
-        )
-    else:
-        agent_output_box.markdown(
-            "<div class='output-box'>✅ Task completed. Check tool calls for details.</div>",
-            unsafe_allow_html=True
+            f"<div class='output-box'>❌ Error: {str(e)}</div>",
+            unsafe_allow_html=True,
         )
 
-# --- Footer ---
+# =========================================================
+# 📌 Footer
+# =========================================================
 st.markdown("---")
 st.markdown(
     "<div class='small-muted'>Built with Streamlit · Uses credentials.json & token.json from working directory</div>",
