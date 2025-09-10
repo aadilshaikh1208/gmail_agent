@@ -13,9 +13,10 @@ from langgraph.prebuilt import create_react_agent
 from langgraph.checkpoint.memory import MemorySaver
 
 # =========================================================
-# ✅ Environment & Config
+# ✅ Environment
 # =========================================================
 load_dotenv()
+
 
 # =========================================================
 # 🏷️ Loading Css file
@@ -49,6 +50,7 @@ st.markdown("""
     </div>
 </div>
 """, unsafe_allow_html=True)
+
 
 # =========================================================
 # 📧 Gmail API Setup
@@ -86,6 +88,7 @@ def init_gmail_tools():
 # =========================================================
 # 🧠 Memory & Agent Setup
 # =========================================================
+
 def init_agent():
     """Create or retrieve the Gmail agent with memory persistence."""
     if "checkpointer" not in st.session_state:
@@ -119,9 +122,6 @@ instructions = load_instructions("instructions.txt")
 col1, col2 = st.columns([1, 2])
 
 with col1:
-    # st.markdown("<div class='section-card compose-section'>",
-    #             unsafe_allow_html=True)
-
     st.subheader("✉️ Compose / Ask")
 
     if "example_query" not in st.session_state:
@@ -133,7 +133,7 @@ with col1:
 
     def handle_send():
         st.session_state.last_query = st.session_state.example_query.strip()
-        st.session_state.example_query = ""  # clear field
+        st.session_state.example_query = ""  
 
     example_query = st.text_area(
         "Type your query here",
@@ -146,8 +146,6 @@ with col1:
     st.markdown("</div>", unsafe_allow_html=True)
 
 with col2:
-    # st.markdown("<div class='section-card'>", unsafe_allow_html=True)
-
     # Agent Response Section
     st.markdown("""
     <div class="output-section"><h4>🤖 Agent Response</h4>
@@ -157,16 +155,6 @@ with col2:
         "<div class='output-box'>Ready to process your query...</div>", unsafe_allow_html=True)
     st.markdown("</div>", unsafe_allow_html=True)
 
-    # Tool Calls Section
-    st.markdown("""
-    <div class="output-section"><h4>🛠️ Tool Calls & Messages</h4>
-    """, unsafe_allow_html=True)
-    tools_output_box = st.empty()
-    tools_output_box.markdown(
-        "<div class='output-box'>Tool interactions will appear here...</div>", unsafe_allow_html=True)
-    st.markdown("</div>", unsafe_allow_html=True)
-
-    st.markdown("</div>", unsafe_allow_html=True)
 
 # =========================================================
 # 🚀 Query Execution
@@ -182,14 +170,10 @@ if run_button:
             agent_executor = init_agent()
 
             # Initialize output containers
-            tools_text, final_response = "", ""
+            final_response = None
 
             agent_output_box.markdown(
                 "<div class='output-box processing'>🔄 Processing your request...</div>",
-                unsafe_allow_html=True,
-            )
-            tools_output_box.markdown(
-                "<div class='output-box processing'>🔄 Waiting for tool calls...</div>",
                 unsafe_allow_html=True,
             )
 
@@ -212,16 +196,16 @@ if run_button:
                     last_message, "__class__", type(last_message)).__name__
 
                 if "Tool" in message_type:
-                    safe_content = html.escape(str(message_content))
-                    tools_text += f"🔧 [{message_type}]\n{safe_content}\n\n"
-                    tools_output_box.markdown(
-                        f"<div class='output-box'>{tools_text}</div>", unsafe_allow_html=True)
+                    continue
 
                 elif "AI" in message_type:
-                    safe_content = html.escape(str(message_content))
-                    final_response = safe_content
-                    agent_output_box.markdown(
-                        f"<div class='output-box'>{final_response}</div>", unsafe_allow_html=True)
+                    if message_content and message_content.strip():   # ✅ only if not empty
+                        safe_content = html.escape(str(message_content))
+                        final_response = safe_content
+                        agent_output_box.markdown(
+                            f"<div class='output-box'>{final_response}</div>",
+                            unsafe_allow_html=True,
+                        )
 
             # Ensure final response is displayed
             if not final_response:
