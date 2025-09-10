@@ -2,7 +2,6 @@ import uuid
 import html
 import streamlit as st
 from dotenv import load_dotenv
-from langchain import hub
 from langchain.chat_models import init_chat_model
 from langchain_google_community import GmailToolkit
 from langchain_google_community.gmail.utils import (
